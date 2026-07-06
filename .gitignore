@@ -1,0 +1,6 @@
+.streamlit/secrets.toml
+face.jpg
+temp.jpg
+emotion_log.csv
+__pycache__/
+*.pyc

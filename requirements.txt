@@ -1,0 +1,9 @@
+streamlit
+opencv-python
+deepface
+tf-keras
+transformers
+torch
+pandas
+numpy
+requests
