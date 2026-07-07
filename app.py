@@ -390,6 +390,16 @@ with tab1:
     st.markdown('<div class="step-label">📸 Step 1 — Show your face</div>', unsafe_allow_html=True)
     img_file = st.camera_input(" ", label_visibility="collapsed", key="cam1")
 
+    # Cache the captured photo bytes the instant they're available, rather than
+    # relying solely on img_file's live value at click-time — this guards
+    # against the widget's return value not surviving a later rerun in some
+    # deployment environments.
+    if img_file is not None:
+        st.session_state["cached_photo_bytes"] = img_file.getvalue()
+
+    if "cached_photo_bytes" in st.session_state:
+        st.caption("✅ Photo captured and ready")
+
     with st.form(key="mood_form"):
         st.markdown('<div class="step-label">💬 Step 2 — Tell me how you feel</div>', unsafe_allow_html=True)
         user_text = st.text_area(" ", placeholder="e.g. I don't get this at all, it's frustrating...",
@@ -398,12 +408,18 @@ with tab1:
         analyze_clicked = st.form_submit_button("🔍 Analyze my mood", type="primary")
 
     if analyze_clicked:
-        if not img_file or not user_text.strip():
-            st.markdown('<div class="empty-hint">I need both a photo and a bit of text to give you a read 🙂</div>', unsafe_allow_html=True)
+        photo_bytes = st.session_state.get("cached_photo_bytes")
+        if not photo_bytes or not user_text.strip():
+            missing = []
+            if not photo_bytes:
+                missing.append("a photo")
+            if not user_text.strip():
+                missing.append("some text")
+            st.markdown(f'<div class="empty-hint">I still need {" and ".join(missing)} to give you a read 🙂</div>', unsafe_allow_html=True)
         else:
             with st.spinner("Scanning..."):
                 with open("temp.jpg", "wb") as f:
-                    f.write(img_file.getbuffer())
+                    f.write(photo_bytes)
 
                 emotion_scores, annotated_img = None, None
                 try:
