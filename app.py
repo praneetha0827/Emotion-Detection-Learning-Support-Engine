@@ -188,9 +188,21 @@ def get_study_fallback(label):
     return STUDY_RESPONSES.get(primary, "Keep going — steady effort adds up even when it doesn't feel like it.")
 
 def call_gemini(user_text, emotion_label):
-    api_key = st.secrets.get("GEMINI_API_KEY", None)
+    # Check Streamlit's secrets.toml first (used for local dev), then fall
+    # back to a plain environment variable (how Hugging Face Spaces exposes
+    # Repository Secrets). st.secrets raises an exception entirely if no
+    # secrets.toml file exists at all, so it must be wrapped in try/except
+    # rather than just using .get().
+    api_key = None
+    try:
+        api_key = st.secrets.get("GEMINI_API_KEY", None)
+    except Exception:
+        pass
     if not api_key:
-        return "⚠️ No Gemini API key found in .streamlit/secrets.toml — add one to enable live AI guidance."
+        api_key = os.environ.get("GEMINI_API_KEY")
+
+    if not api_key:
+        return "⚠️ No Gemini API key found — add one as a Streamlit secret (local) or a Repository Secret (Hugging Face Spaces) to enable live AI guidance."
 
     prompt = (
         f"A student describes their study challenge as: \"{user_text}\"\n"
@@ -375,14 +387,15 @@ tab1, tab2 = st.tabs(["📸 Webcam + Text", "📝 Study Challenge (AI-guided)"])
 # TAB 1 — original webcam + text mode
 # =========================================================
 with tab1:
-    st.markdown('<div class="step-label">📸 Step 1 — Show your face</div>', unsafe_allow_html=True)
-    img_file = st.camera_input(" ", label_visibility="collapsed", key="cam1")
+    with st.form(key="mood_form"):
+        st.markdown('<div class="step-label">📸 Step 1 — Show your face</div>', unsafe_allow_html=True)
+        img_file = st.camera_input(" ", label_visibility="collapsed", key="cam1")
 
-    st.markdown('<div class="step-label">💬 Step 2 — Tell me how you feel</div>', unsafe_allow_html=True)
-    user_text = st.text_area(" ", placeholder="e.g. I don't get this at all, it's frustrating...",
-                              label_visibility="collapsed", height=120, key="text1")
+        st.markdown('<div class="step-label">💬 Step 2 — Tell me how you feel</div>', unsafe_allow_html=True)
+        user_text = st.text_area(" ", placeholder="e.g. I don't get this at all, it's frustrating...",
+                                  label_visibility="collapsed", height=120, key="text1")
 
-    analyze_clicked = st.button("🔍 Analyze my mood", type="primary", key="analyze_tab1")
+        analyze_clicked = st.form_submit_button("🔍 Analyze my mood", type="primary")
 
     if analyze_clicked:
         if not img_file or not user_text.strip():
@@ -439,18 +452,21 @@ with tab1:
 # TAB 2 — Study Challenge mode
 # =========================================================
 with tab2:
-    st.markdown('<div class="step-label">💬 Describe what you\'re studying and what\'s hard about it</div>', unsafe_allow_html=True)
-    challenge_text = st.text_area(" ", placeholder="e.g. I'm lost on recursion, I don't understand how the function calls itself...",
-                                   label_visibility="collapsed", height=130, key="text2")
+    with st.form(key="challenge_form"):
+        st.markdown('<div class="step-label">💬 Describe what you\'re studying and what\'s hard about it</div>', unsafe_allow_html=True)
+        challenge_text = st.text_area(" ", placeholder="e.g. I'm lost on recursion, I don't understand how the function calls itself...",
+                                       label_visibility="collapsed", height=130, key="text2")
 
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        show_comparison = st.toggle("🔍 Show model comparison", value=True)
-    with col_t2:
-        use_gemini = st.toggle("✨ Use Gemini for guidance", value=True,
-                                help="If off, a quick canned tip is shown instead of calling the Gemini API")
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            show_comparison = st.toggle("🔍 Show model comparison", value=True)
+        with col_t2:
+            use_gemini = st.toggle("✨ Use Gemini for guidance", value=True,
+                                    help="If off, a quick canned tip is shown instead of calling the Gemini API")
 
-    if st.button("Analyze my challenge", type="primary"):
+        analyze_challenge_clicked = st.form_submit_button("Analyze my challenge", type="primary")
+
+    if analyze_challenge_clicked:
         if not challenge_text.strip():
             st.markdown('<div class="empty-hint">Type something first so I have a challenge to analyze 🙂</div>', unsafe_allow_html=True)
         elif check_safety_concern(challenge_text):
