@@ -1,3 +1,12 @@
+---
+title: Emotion Detection & Learning Support Engine
+emoji: 🎓
+colorFrom: purple
+colorTo: blue
+sdk: docker
+app_port: 8501
+pinned: false
+---
 # Emotion Detection & Learning Support Engine
 
 An AI-powered assistant that detects a learner's emotional state — from their
