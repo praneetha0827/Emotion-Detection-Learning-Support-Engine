@@ -387,10 +387,10 @@ tab1, tab2 = st.tabs(["📸 Webcam + Text", "📝 Study Challenge (AI-guided)"])
 # TAB 1 — original webcam + text mode
 # =========================================================
 with tab1:
-    with st.form(key="mood_form"):
-        st.markdown('<div class="step-label">📸 Step 1 — Show your face</div>', unsafe_allow_html=True)
-        img_file = st.camera_input(" ", label_visibility="collapsed", key="cam1")
+    st.markdown('<div class="step-label">📸 Step 1 — Show your face</div>', unsafe_allow_html=True)
+    img_file = st.camera_input(" ", label_visibility="collapsed", key="cam1")
 
+    with st.form(key="mood_form"):
         st.markdown('<div class="step-label">💬 Step 2 — Tell me how you feel</div>', unsafe_allow_html=True)
         user_text = st.text_area(" ", placeholder="e.g. I don't get this at all, it's frustrating...",
                                   label_visibility="collapsed", height=120, key="text1")
