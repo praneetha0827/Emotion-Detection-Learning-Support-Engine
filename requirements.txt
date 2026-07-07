@@ -1,9 +1,8 @@
 streamlit
-opencv-python
+opencv-python-headless
 deepface
 tf-keras
 transformers
-torch
 pandas
 numpy
 requests
