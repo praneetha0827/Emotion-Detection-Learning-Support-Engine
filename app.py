@@ -390,79 +390,60 @@ with tab1:
     st.markdown('<div class="step-label">📸 Step 1 — Show your face</div>', unsafe_allow_html=True)
     img_file = st.camera_input(" ", label_visibility="collapsed", key="cam1")
 
-    # Cache the captured photo bytes the instant they're available, rather than
-    # relying solely on img_file's live value at click-time — this guards
-    # against the widget's return value not surviving a later rerun in some
-    # deployment environments.
-    if img_file is not None:
-        st.session_state["cached_photo_bytes"] = img_file.getvalue()
+    st.markdown('<div class="step-label">💬 Step 2 — Tell me how you feel</div>', unsafe_allow_html=True)
+    user_text = st.text_area(" ", placeholder="e.g. I don't get this at all, it's frustrating...",
+                              label_visibility="collapsed", height=120, key="text1")
 
-    if "cached_photo_bytes" in st.session_state:
-        st.caption("✅ Photo captured and ready")
+    if img_file and user_text.strip():
+        with st.spinner("Scanning..."):
+            with open("temp.jpg", "wb") as f:
+                f.write(img_file.getbuffer())
 
-    with st.form(key="mood_form"):
-        st.markdown('<div class="step-label">💬 Step 2 — Tell me how you feel</div>', unsafe_allow_html=True)
-        user_text = st.text_area(" ", placeholder="e.g. I don't get this at all, it's frustrating...",
-                                  label_visibility="collapsed", height=120, key="text1")
+            emotion_scores, annotated_img = None, None
+            try:
+                face_result = DeepFace.analyze(img_path="temp.jpg", actions=['emotion'], enforce_detection=False)
+                face_emotion = face_result[0]['dominant_emotion']
+                emotion_scores = face_result[0]['emotion']
+                region = face_result[0].get('region', {})
+                if region.get('w', 0) > 0:
+                    annotated_img = draw_viewfinder("temp.jpg", region)
+            except Exception:
+                face_emotion = "neutral"
+                st.warning("Couldn't clearly detect a face — using neutral as fallback.")
 
-        analyze_clicked = st.form_submit_button("🔍 Analyze my mood", type="primary")
+            text_result = text_classifier(user_text)[0][0]['label']
+            final_emotion = fuse_emotions(face_emotion, text_result)
 
-    if analyze_clicked:
-        photo_bytes = st.session_state.get("cached_photo_bytes")
-        if not photo_bytes or not user_text.strip():
-            missing = []
-            if not photo_bytes:
-                missing.append("a photo")
-            if not user_text.strip():
-                missing.append("some text")
-            st.markdown(f'<div class="empty-hint">I still need {" and ".join(missing)} to give you a read 🙂</div>', unsafe_allow_html=True)
-        else:
-            with st.spinner("Scanning..."):
-                with open("temp.jpg", "wb") as f:
-                    f.write(photo_bytes)
+        if annotated_img is not None and emotion_scores is not None:
+            st.markdown('<div class="scan-card">', unsafe_allow_html=True)
+            st.markdown('<div class="scan-title">Facial analysis</div>', unsafe_allow_html=True)
+            col_img, col_bars = st.columns([1, 1])
+            with col_img:
+                st.image(annotated_img, use_container_width=True)
+            with col_bars:
+                st.markdown(render_emotion_bars(emotion_scores), unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-                emotion_scores, annotated_img = None, None
-                try:
-                    face_result = DeepFace.analyze(img_path="temp.jpg", actions=['emotion'], enforce_detection=False)
-                    face_emotion = face_result[0]['dominant_emotion']
-                    emotion_scores = face_result[0]['emotion']
-                    region = face_result[0].get('region', {})
-                    if region.get('w', 0) > 0:
-                        annotated_img = draw_viewfinder("temp.jpg", region)
-                except Exception:
-                    face_emotion = "neutral"
-                    st.warning("Couldn't clearly detect a face — using neutral as fallback.")
+        emoji = EMOTION_EMOJI.get(final_emotion, "😐")
+        face_emoji = EMOTION_EMOJI.get(normalize(face_emotion), "😐")
+        text_emoji = EMOTION_EMOJI.get(normalize(text_result), "😐")
 
-                text_result = text_classifier(user_text)[0][0]['label']
-                final_emotion = fuse_emotions(face_emotion, text_result)
-
-            if annotated_img is not None and emotion_scores is not None:
-                st.markdown('<div class="scan-card">', unsafe_allow_html=True)
-                st.markdown('<div class="scan-title">Facial analysis</div>', unsafe_allow_html=True)
-                col_img, col_bars = st.columns([1, 1])
-                with col_img:
-                    st.image(annotated_img, use_container_width=True)
-                with col_bars:
-                    st.markdown(render_emotion_bars(emotion_scores), unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            emoji = EMOTION_EMOJI.get(final_emotion, "😐")
-            face_emoji = EMOTION_EMOJI.get(normalize(face_emotion), "😐")
-            text_emoji = EMOTION_EMOJI.get(normalize(text_result), "😐")
-
-            st.markdown(f"""
-            <div class="result-card card-{final_emotion}">
-                <div class="result-emoji">{emoji}</div>
-                <div class="result-label">{final_emotion}</div>
-                <div class="signal-row">
-                    <div class="signal-chip"><div class="signal-chip-title">Face says</div><div class="signal-chip-value">{face_emoji} {face_emotion}</div></div>
-                    <div class="signal-chip"><div class="signal-chip-title">Text says</div><div class="signal-chip-value">{text_emoji} {text_result}</div></div>
-                </div>
-                <div class="support-message">{get_support_message(final_emotion)}</div>
+        st.markdown(f"""
+        <div class="result-card card-{final_emotion}">
+            <div class="result-emoji">{emoji}</div>
+            <div class="result-label">{final_emotion}</div>
+            <div class="signal-row">
+                <div class="signal-chip"><div class="signal-chip-title">Face says</div><div class="signal-chip-value">{face_emoji} {face_emotion}</div></div>
+                <div class="signal-chip"><div class="signal-chip-title">Text says</div><div class="signal-chip-value">{text_emoji} {text_result}</div></div>
             </div>
-            """, unsafe_allow_html=True)
+            <div class="support-message">{get_support_message(final_emotion)}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-            log_session("webcam_text", face_emotion, text_result, final_emotion, user_text)
+        log_session("webcam_text", face_emotion, text_result, final_emotion, user_text)
+
+    elif img_file or user_text.strip():
+        st.markdown('<div class="empty-hint">Almost there — I need both a photo and a bit of text to give you a read 🙂</div>', unsafe_allow_html=True)
 
 # =========================================================
 # TAB 2 — Study Challenge mode
